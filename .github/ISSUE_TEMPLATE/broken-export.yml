@@ -1,0 +1,22 @@
+name: Broken export
+description: Report a failed export or low-quality output from a supported site
+title: "Broken export: "
+labels:
+  - bug
+  - export
+body:
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: Describe the failure or formatting issue.
+    validations:
+      required: true
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debug report
+      description: Paste the copied debug report from the extension popup.
+      render: json
+    validations:
+      required: true

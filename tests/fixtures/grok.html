@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <body>
+    <main>
+      <div class="conversation-thread">
+        <div class="message-bubble user-message" data-role="user">
+          <div class="message-content">Explain the tradeoffs.</div>
+        </div>
+        <div class="message-bubble assistant-message" data-role="assistant">
+          <div class="message-content">The API path is more stable than DOM scraping, but it depends on site-specific auth and endpoints.</div>
+        </div>
+        <div class="message-bubble user-message" data-role="user">
+          <div class="message-content">Can you summarize it?</div>
+        </div>
+        <div class="message-bubble assistant-message" data-role="assistant">
+          <div class="message-content">Use API or state extraction when available and keep DOM extraction as fallback.</div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

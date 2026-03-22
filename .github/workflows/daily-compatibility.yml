@@ -1,0 +1,125 @@
+name: Daily Compatibility
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  fixture-compatibility:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Generate compatibility summary
+        run: node scripts/compatibility-summary.js | tee compatibility-summary.md
+      - name: Run compatibility suite
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee compatibility.log
+      - name: Upload compatibility artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-compatibility-artifacts
+          path: |
+            compatibility-summary.md
+            compatibility.log
+      - name: Append summary to workflow
+        if: always()
+        run: cat compatibility-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      SMOKE_CHATGPT_URL: ${{ secrets.SMOKE_CHATGPT_URL }}
+      SMOKE_CHATGPT_COOKIES: ${{ secrets.SMOKE_CHATGPT_COOKIES }}
+      SMOKE_GEMINI_URL: ${{ secrets.SMOKE_GEMINI_URL }}
+      SMOKE_GEMINI_COOKIES: ${{ secrets.SMOKE_GEMINI_COOKIES }}
+      SMOKE_PERPLEXITY_URL: ${{ secrets.SMOKE_PERPLEXITY_URL }}
+      SMOKE_PERPLEXITY_COOKIES: ${{ secrets.SMOKE_PERPLEXITY_COOKIES }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Install Playwright Chromium
+        if: env.SMOKE_CHATGPT_URL != '' || env.SMOKE_GEMINI_URL != '' || env.SMOKE_PERPLEXITY_URL != ''
+        run: npx playwright install --with-deps chromium
+      - name: Run live smoke suite
+        id: live_smoke
+        run: |
+          set +e
+          npm run test:live-smoke
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload live smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-smoke-artifacts
+          path: artifacts/live-smoke
+      - name: Append live smoke summary to workflow
+        if: always()
+        run: |
+          if [ -f artifacts/live-smoke/summary.md ]; then
+            cat artifacts/live-smoke/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Live Smoke Summary" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "- No live smoke summary was generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Fail workflow when live smoke checks fail
+        if: steps.live_smoke.outputs.exit_code != '0'
+        run: exit 1
+
+  report-failure:
+    runs-on: ubuntu-latest
+    needs:
+      - fixture-compatibility
+      - live-smoke
+    if: always() && (needs.fixture-compatibility.result == 'failure' || needs.live-smoke.result == 'failure')
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open issue on failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Daily compatibility failure - ${new Date().toISOString().slice(0, 10)}`;
+            const failedJobs = [
+              ["fixture-compatibility", "${{ needs.fixture-compatibility.result }}"],
+              ["live-smoke", "${{ needs.live-smoke.result }}"]
+            ]
+              .filter(([, result]) => result === "failure")
+              .map(([name]) => `- ${name}`);
+            const body = [
+              "The scheduled compatibility workflow failed.",
+              "",
+              "Failed jobs:",
+              ...failedJobs,
+              "",
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              "",
+              "Please inspect the uploaded fixture and live-smoke artifacts."
+            ].join("\n");
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["bug", "compatibility"]
+            });

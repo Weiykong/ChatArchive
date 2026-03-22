@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatArchive</title>
+  <style>
+    :root {
+      --primary-color: #1a73e8;
+      --hover-color: #1557b0;
+      --bg-color: #ffffff;
+      --text-color: #3c4043;
+      --secondary-text: #5f6368;
+      --border-color: #dadce0;
+      --border-radius: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #202124;
+        --text-color: #e8eaed;
+        --secondary-text: #9aa0a6;
+        --border-color: #3c4043;
+      }
+    }
+
+    body {
+      width: 280px;
+      padding: 16px;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .header h1 {
+      font-size: 16px;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .description {
+      font-size: 13px;
+      color: var(--secondary-text);
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    .supported-sites {
+      margin-bottom: 18px;
+      font-size: 12px;
+      color: var(--secondary-text);
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      background: rgba(26, 115, 232, 0.06);
+    }
+
+    .field {
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--secondary-text);
+    }
+
+    select {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    select:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-color);
+    }
+
+    .checkbox-row input {
+      margin: 0;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      cursor: pointer;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: var(--border-radius);
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background-color: var(--hover-color);
+      box-shadow: 0 2px 6px rgba(26, 115, 232, 0.3);
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      color: #888;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .secondary-button {
+      background-color: transparent;
+      color: var(--primary-color);
+      border: 1px solid var(--border-color);
+      box-shadow: none;
+    }
+
+    .secondary-button:hover {
+      background-color: rgba(26, 115, 232, 0.08);
+      box-shadow: none;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--secondary-text);
+    }
+
+    #status {
+      margin-top: 16px;
+      font-size: 12px;
+      text-align: center;
+      color: var(--secondary-text);
+      font-weight: 500;
+      min-height: 18px;
+    }
+
+    .progress-bar {
+      height: 4px;
+      width: 100%;
+      background-color: var(--border-color);
+      border-radius: 2px;
+      margin-top: 8px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background-color: var(--primary-color);
+      transition: width 0.3s ease;
+    }
+
+    @keyframes loading {
+      0% { width: 0%; }
+      50% { width: 70%; }
+      100% { width: 100%; }
+    }
+
+    .loading .progress-fill {
+      animation: loading 4s infinite ease-in-out;
+    }
+
+    .diagnostics {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      background: rgba(15, 118, 110, 0.06);
+      display: none;
+    }
+
+    .diagnostics h2 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--secondary-text);
+    }
+
+    .diagnostics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 12px;
+      font-size: 12px;
+    }
+
+    .diagnostics-grid strong {
+      display: block;
+      font-size: 11px;
+      color: var(--secondary-text);
+      margin-bottom: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>ChatArchive</h1>
+  </div>
+  <p class="description">Export active conversations with layered extraction strategies and full-history auto-scroll.</p>
+
+  <div class="supported-sites" id="siteSupport">
+    Supported today: ChatGPT, Gemini, DeepSeek, Grok, Perplexity, Claude
+  </div>
+  
+  <div class="field">
+    <label for="formatSelect">Export Format</label>
+    <select id="formatSelect">
+      <option value="md">Markdown (.md)</option>
+      <option value="obsidian">Obsidian Markdown (.md)</option>
+      <option value="txt">Plain Text (.txt)</option>
+      <option value="json">JSON (.json)</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Options</label>
+    <div class="checkbox-row">
+      <input type="checkbox" id="includeMetadata" checked>
+      <span>Include metadata header</span>
+    </div>
+  </div>
+
+  <button id="exportBtn">Export Chat</button>
+
+  <div class="button-row">
+    <button id="stopBtn" class="secondary-button" type="button" disabled>Stop & Save</button>
+    <button id="copyReportBtn" class="secondary-button" type="button" disabled>Copy Debug</button>
+  </div>
+
+  <div class="button-row">
+    <button id="reportIssueBtn" class="secondary-button" type="button" disabled>Report Issue</button>
+    <button id="refreshStatusBtn" class="secondary-button" type="button">Refresh Status</button>
+  </div>
+
+  <div class="hint" id="runtimeHint">
+    DOM scrolling can slow down or pause in a background tab. Use Stop & Save or <code>Ctrl/Command+Shift+S</code> to keep partial progress.
+  </div>
+  
+  <div id="statusContainer">
+    <div id="status"></div>
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-fill"></div>
+    </div>
+  </div>
+
+  <section class="diagnostics" id="diagnosticsPanel">
+    <h2>Last Export</h2>
+    <div class="diagnostics-grid">
+      <div><strong>Platform</strong><span id="diagPlatform">-</span></div>
+      <div><strong>Source</strong><span id="diagSource">-</span></div>
+      <div><strong>Strategy</strong><span id="diagStrategy">-</span></div>
+      <div><strong>Messages</strong><span id="diagMessages">-</span></div>
+      <div><strong>Confidence</strong><span id="diagConfidence">-</span></div>
+      <div><strong>Format</strong><span id="diagFormat">-</span></div>
+      <div><strong>File</strong><span id="diagFile">-</span></div>
+    </div>
+  </section>
+
+  <script type="module" src="src/popup/popup.js"></script>
+</body>
+</html>

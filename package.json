@@ -1,0 +1,17 @@
+{
+  "name": "chatarchive",
+  "version": "1.11.0",
+  "private": true,
+  "description": "Browser extension for exporting AI conversations with adapter-based extraction.",
+  "scripts": {
+    "test": "node --test",
+    "test:live-smoke": "node scripts/live-smoke.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0",
+    "playwright": "^1.54.2"
+  }
+}

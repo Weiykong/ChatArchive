@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "ChatArchive",
+  "version": "1.11.0",
+  "description": "Export chats from ChatGPT, Gemini, DeepSeek, Grok, Perplexity, and Claude with adapter-based extraction and full-history auto-scroll.",
+  "permissions": ["activeTab", "scripting", "tabs"],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "commands": {
+    "stop-and-save-export": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Stop the current export and save captured messages"
+    }
+  },
+  "icons": {
+    "16": "assets/icon-16.png",
+    "32": "assets/icon-32.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "assets/icon-16.png",
+      "32": "assets/icon-32.png",
+      "48": "assets/icon-48.png"
+    }
+  }
+}
