@@ -5,7 +5,8 @@
   "description": "Browser extension for exporting AI conversations with adapter-based extraction.",
   "scripts": {
     "test": "node --test",
-    "test:live-smoke": "node scripts/live-smoke.js"
+    "test:live-smoke": "node scripts/live-smoke.js",
+    "package:extension": "node scripts/package-extension.js"
   },
   "engines": {
     "node": ">=20"

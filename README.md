@@ -4,12 +4,33 @@
 ![Platforms](https://img.shields.io/badge/platforms-6_supported-2ea043)
 ![Tests](https://img.shields.io/badge/tests-22_passing-2ea043)
 ![Browser](https://img.shields.io/badge/browser-Chromium-f59e0b)
+![License](https://img.shields.io/badge/license-MIT-16a34a)
 
 ChatArchive is a Chromium extension for exporting conversations from modern AI chat products into clean local files. It is designed around per-platform adapters, layered extraction strategies, and diagnostics that make breakages easier to detect and repair when sites change.
 
 The project currently focuses on reliable export, readable Markdown, and maintainable extraction logic rather than one-off scraping hacks.
 
 <img src="assets/logo.png" alt="ChatArchive logo" width="220">
+
+> Export chats from ChatGPT, Gemini, Claude, Perplexity, Grok, and DeepSeek into clean Markdown, Obsidian, text, and JSON files without sending your data to a backend.
+
+[Download latest release](https://github.com/Weiykong/ChatArchive/releases) · [Load unpacked in Chromium](#local-setup) · [See supported platforms](#supported-platforms)
+
+## Why ChatArchive
+
+- Local-first export with no backend service
+- More durable extraction through per-platform adapters and layered fallbacks
+- Multiple output formats for notes, backups, and downstream tooling
+- Built-in diagnostics that make breakages faster to understand
+- Fixture tests plus scheduled compatibility checks to keep support visible
+
+## Quick start
+
+1. Download the latest `.zip` from [GitHub Releases](https://github.com/Weiykong/ChatArchive/releases).
+2. Extract it locally.
+3. Open `chrome://extensions`.
+4. Enable `Developer mode`.
+5. Click `Load unpacked` and select the extracted folder.
 
 ## Preview
 
@@ -92,6 +113,12 @@ That structure does not prevent website breakage, but it makes breakage faster t
 4. Load this repository as an unpacked extension in a Chromium-based browser.
 5. Reload the extension after changing `manifest.json`, `popup.html`, or files under `src/`.
 
+### Packaging
+
+- `npm run package:extension`
+  Creates `dist/chatarchive-<version>.zip`.
+- Pushing a tag like `v1.12.0` triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which tests the repo, builds the extension zip, and publishes a GitHub release.
+
 ### Test strategy
 
 - `npm test`
@@ -134,6 +161,10 @@ npx playwright install chromium
 - Debug and issue-report tooling is user-initiated
 
 This matters because a chat exporter should be auditable and easy to inspect.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ## Contributing
 
