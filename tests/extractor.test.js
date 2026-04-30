@@ -52,6 +52,131 @@ test("extracts Gemini fixture with semantic tags", () => {
   assert.equal(result.messages[1].author, "Gemini");
 });
 
+test("extracts Gemini conversation title from DOM", () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/gemini.html"),
+    "https://gemini.google.com/app/example"
+  );
+  const { window } = dom;
+  const adapter = window.ChatArchive.platforms.findAdapter(window.location.hostname);
+  const extraction = window.ChatArchive.extractor.pickBestExtraction(window.document, adapter);
+  const payload = window.ChatArchive.exporters.buildExportPayload("json", adapter, extraction.messages, {
+    strategyId: extraction.strategyId,
+    source: "dom"
+  });
+
+  assert.equal(payload.metadata.title, "Roadmap to AGI");
+});
+
+test("extracts Copilot conversation title from current navigation item", () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/copilot.html"),
+    "https://copilot.microsoft.com/chats/example"
+  );
+  const { window } = dom;
+  const adapter = window.ChatArchive.platforms.findAdapter(window.location.hostname);
+  const payload = window.ChatArchive.exporters.buildExportPayload(
+    "json",
+    adapter,
+    [{ author: "You", content: "Summarize the roadmap." }],
+    {}
+  );
+
+  assert.equal(payload.metadata.title, "Quarterly planning notes");
+});
+
+test("falls back to the first user message when the page title is generic", () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/copilot-generic-title.html"),
+    "https://copilot.microsoft.com/chats/example"
+  );
+  const { window } = dom;
+  const adapter = window.ChatArchive.platforms.findAdapter(window.location.hostname);
+  const payload = window.ChatArchive.exporters.buildExportPayload(
+    "json",
+    adapter,
+    [
+      { author: "You", content: "Plan Q2 launch milestones and risks.\n\nInclude owners and dates." },
+      { author: "Copilot", content: "Here is a draft plan." }
+    ],
+    {}
+  );
+
+  assert.equal(payload.metadata.title, "Plan Q2 launch milestones and risks.");
+});
+
+test("extracts Copilot article-style turns without leaving stray 'said' text", async () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/copilot-fallback.html"),
+    "https://copilot.microsoft.com/chats/example"
+  );
+  const { window } = dom;
+
+  const result = await window.ChatArchive.extractor.extractConversation(window.document);
+  const payload = window.ChatArchive.exporters.buildExportPayload(
+    "json",
+    result.adapter,
+    result.messages,
+    {}
+  );
+
+  assert.equal(result.source, "page");
+  assert.equal(result.strategyId, "copilot-fallback");
+  assert.equal(result.messages[0].author, "You");
+  assert.equal(result.messages[0].content, "Plan the launch timeline.");
+  assert.equal(result.messages[1].author, "Copilot");
+  assert.equal(result.messages[1].content, "Here is a draft timeline.");
+  assert.equal(payload.metadata.title, "Plan the launch timeline.");
+});
+
+test("collapses mirrored Copilot fallback duplicates and skips 'said' as title", async () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/copilot-fallback-duplicates.html"),
+    "https://copilot.microsoft.com/chats/example"
+  );
+  const { window } = dom;
+
+  const result = await window.ChatArchive.extractor.extractConversation(window.document);
+  const payload = window.ChatArchive.exporters.buildExportPayload(
+    "json",
+    result.adapter,
+    result.messages,
+    {}
+  );
+
+  assert.equal(result.strategyId, "copilot-fallback");
+  assert.deepEqual(
+    Array.from(result.messages, (message) => `${message.author}: ${message.content}`),
+    [
+      "Copilot: Here is a draft timeline.",
+      "You: Plan the launch timeline."
+    ]
+  );
+  assert.equal(payload.metadata.title, "Plan the launch timeline.");
+});
+
+test("skips weak Copilot steering prompts when deriving a fallback title", async () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/copilot-generic-title.html"),
+    "https://copilot.microsoft.com/chats/example"
+  );
+  const { window } = dom;
+  const adapter = window.ChatArchive.platforms.findAdapter(window.location.hostname);
+  const payload = window.ChatArchive.exporters.buildExportPayload(
+    "json",
+    adapter,
+    [
+      { author: "Copilot", content: "Here is the earlier answer." },
+      { author: "You", content: "In English" },
+      { author: "Copilot", content: "Here is the English version." },
+      { author: "You", content: "Improving a joke for humor" }
+    ],
+    {}
+  );
+
+  assert.equal(payload.metadata.title, "Improving a joke for humor");
+});
+
 test("prefers Gemini state extraction when state payload is available", async () => {
   const dom = loadFixture(
     path.join(process.cwd(), "tests/fixtures/gemini-state.html"),
@@ -356,6 +481,58 @@ test("builds Obsidian markdown payload with metadata and headings", () => {
   assert.match(payload.content, /\n## ChatGPT\n/);
 });
 
+test("renders markdown-like conversation content into structured HTML", () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/chatgpt.html"),
+    "https://chatgpt.com/c/example"
+  );
+  const { window } = dom;
+  const adapter = window.ChatArchive.platforms.findAdapter(window.location.hostname);
+  const payload = window.ChatArchive.exporters.buildExportPayload(
+    "html",
+    adapter,
+    [
+      {
+        author: "You",
+        content: "# Summary\n\n- First bullet\n- Second bullet\n\n> Keep this excerpt.\n\nUse the [guide](https://example.com) and `npm test`.\n\n```js\nconst value = 1;\n```"
+      }
+    ],
+    {
+      includeMetadata: true,
+      title: "Structured export"
+    }
+  );
+
+  assert.match(payload.filename, /\.html$/);
+  assert.match(payload.content, /<h1>Summary<\/h1>/);
+  assert.match(payload.content, /<ul><li>First bullet<\/li><li>Second bullet<\/li><\/ul>/);
+  assert.match(payload.content, /<blockquote><p>Keep this excerpt\.<\/p><\/blockquote>/);
+  assert.match(payload.content, /<a href="https:\/\/example\.com" target="_blank" rel="noreferrer noopener">guide<\/a>/);
+  assert.match(payload.content, /<code>npm test<\/code>/);
+  assert.match(payload.content, /<section class="code-block"><div class="code-language">js<\/div><pre><code>const value = 1;/);
+});
+
+test("builds print-ready PDF payloads with print controls and pdf filenames", () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/chatgpt.html"),
+    "https://chatgpt.com/c/example"
+  );
+  const { window } = dom;
+  const adapter = window.ChatArchive.platforms.findAdapter(window.location.hostname);
+  const result = window.ChatArchive.extractor.pickBestExtraction(window.document, adapter);
+  const payload = window.ChatArchive.exporters.buildExportPayload("pdf", adapter, result.messages, {
+    includeMetadata: true,
+    strategyId: result.strategyId,
+    source: "dom"
+  });
+
+  assert.match(payload.filename, /\.pdf$/);
+  assert.equal(payload.mimeType, "text/html;charset=utf-8");
+  assert.match(payload.content, /Print \/ Save as PDF/);
+  assert.match(payload.content, /@page/);
+  assert.match(payload.content, /<div class="message-list">/);
+});
+
 test("includes partial metadata in exported payloads", () => {
   const dom = loadFixture(
     path.join(process.cwd(), "tests/fixtures/chatgpt.html"),
@@ -378,6 +555,144 @@ test("includes partial metadata in exported payloads", () => {
 
   assert.match(payload.content, /extraction_source: dom/);
   assert.match(payload.content, /partial: true/);
+});
+
+test("builds CSV payloads with escaped multiline content", () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/chatgpt.html"),
+    "https://chatgpt.com/c/example"
+  );
+  const { window } = dom;
+  const adapter = window.ChatArchive.platforms.findAdapter(window.location.hostname);
+  const result = window.ChatArchive.extractor.pickBestExtraction(window.document, adapter);
+  const payload = window.ChatArchive.exporters.buildExportPayload("csv", adapter, result.messages, {
+    includeMetadata: true,
+    strategyId: result.strategyId,
+    source: "dom"
+  });
+
+  assert.match(payload.filename, /\.csv$/);
+  assert.match(payload.content, /^index,author,content,platform,source,strategy,partial,exported_at,title,conversation_url$/m);
+  assert.match(payload.content, /^1,You,Summarize this repository architecture\.,ChatGPT,dom,role-attributes,false,/m);
+  assert.match(payload.content, /"Here is a plan\.[\s\S]*const plan = \[""adapters"", ""tests""\];[\s\S]*```"/m);
+});
+
+test("expands extended filename template tokens and sanitizes invalid characters", () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/chatgpt.html"),
+    "https://chatgpt.com/c/example"
+  );
+  const { window } = dom;
+  const adapter = window.ChatArchive.platforms.findAdapter(window.location.hostname);
+  const result = window.ChatArchive.extractor.pickBestExtraction(window.document, adapter);
+  const payload = window.ChatArchive.exporters.buildExportPayload("md", adapter, result.messages, {
+    strategyId: result.strategyId,
+    source: "dom",
+    filenameTemplate: "{platform}/{source}:{count}?{strategy}|{title}"
+  });
+
+  assert.equal(
+    payload.filename,
+    "ChatGPT_dom_3_role-attributes_Summarize this repository architecture.md"
+  );
+});
+
+test("Gemini title extraction prioritizes main content over sidebar", async () => {
+  const dom = new (require("jsdom").JSDOM)(`
+    <!DOCTYPE html>
+    <html lang="en">
+      <body>
+        <nav class="sidebar">
+          <div data-test-id="conversation-title">Sidebar Title 1</div>
+          <div data-test-id="conversation-title">Sidebar Title 2</div>
+          <div class="conversation-title">Sidebar Title 3</div>
+        </nav>
+        <main>
+          <h1>Current Chat Title</h1>
+          <div class="conversation-container">
+            <user-query>
+              <div class="query-text">Hello Gemini</div>
+            </user-query>
+            <model-response>
+              <div class="markdown">Hello there!</div>
+            </model-response>
+          </div>
+        </main>
+      </body>
+    </html>
+  `, {
+    url: "https://gemini.google.com/app/example",
+    pretendToBeVisual: true,
+    runScripts: "outside-only"
+  });
+
+  const context = dom.getInternalVMContext();
+  require("../scripts/content-files").getContentFilePaths(process.cwd()).forEach((filePath) => {
+    new (require("node:vm")).Script(require("node:fs").readFileSync(filePath, "utf8"), {
+      filename: filePath
+    }).runInContext(context);
+  });
+
+  const { window } = dom;
+  const adapter = window.ChatArchive.platforms.findAdapter(window.location.hostname);
+  
+  // Mock scrollBy to avoid TypeError in JSDOM
+  window.Element.prototype.scrollBy = function() {};
+  window.HTMLElement.prototype.scrollBy = function() {};
+
+  const result = await window.ChatArchive.extractor.extractConversation(window.document);
+
+  assert.equal(adapter.id, "gemini");
+  assert.equal(result.title, "Current Chat Title");
+});
+
+test("Gemini state extraction matches title by conversation ID from URL", async () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/gemini-state.html"),
+    "https://gemini.google.com/app/c/chat-123"
+  );
+  const { window } = dom;
+  
+  window.__STATE__ = {
+    history: [
+      { conversationId: "chat-999", title: "Old Conversation" },
+      { conversationId: "chat-123", title: "Target Conversation" }
+    ],
+    conversation: {
+      turns: [
+        { query: "Message", response: "Reply" }
+      ]
+    }
+  };
+
+  const result = await window.ChatArchive.extractor.extractConversation(window.document);
+
+  assert.equal(result.adapter.id, "gemini");
+  assert.equal(result.title, "Target Conversation");
+});
+
+test("Gemini state extraction falls back to first title if no ID in URL", async () => {
+  const dom = loadFixture(
+    path.join(process.cwd(), "tests/fixtures/gemini-state.html"),
+    "https://gemini.google.com/app"
+  );
+  const { window } = dom;
+  
+  window.__STATE__ = {
+    history: [
+      { conversationId: "chat-999", title: "First Found" },
+      { conversationId: "chat-123", title: "Second Found" }
+    ],
+    conversation: {
+      turns: [
+        { query: "Message", response: "Reply" }
+      ]
+    }
+  };
+
+  const result = await window.ChatArchive.extractor.extractConversation(window.document);
+
+  assert.equal(result.title, "First Found");
 });
 
 function stubScrollable(window, element, dimensions) {

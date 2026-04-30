@@ -1,8 +1,8 @@
 # ChatArchive
 
-![Version](https://img.shields.io/badge/version-1.11.0-1f6feb)
-![Platforms](https://img.shields.io/badge/platforms-6_supported-2ea043)
-![Tests](https://img.shields.io/badge/tests-22_passing-2ea043)
+![Version](https://img.shields.io/badge/version-1.13.0-1f6feb)
+![Platforms](https://img.shields.io/badge/platforms-13_supported-2ea043)
+![Tests](https://img.shields.io/badge/tests-27_passing-2ea043)
 ![Browser](https://img.shields.io/badge/browser-Chromium-f59e0b)
 ![License](https://img.shields.io/badge/license-MIT-16a34a)
 
@@ -12,13 +12,14 @@ The project currently focuses on reliable export, readable Markdown, and maintai
 
 <img src="assets/logo.png" alt="ChatArchive logo" width="220">
 
-> Export chats from ChatGPT, Gemini, Claude, Perplexity, Grok, and DeepSeek into clean Markdown, Obsidian, text, and JSON files without sending your data to a backend.
+> Export chats from ChatGPT, Gemini, Claude, Perplexity, Grok, DeepSeek, Mistral, HuggingChat, Meta AI, Poe, Copilot, Phind, and You.com into clean Markdown, Obsidian, PDF, HTML, text, JSON, and CSV files without sending your data to a backend.
 
 [Download latest release](https://github.com/Weiykong/ChatArchive/releases) · [Load unpacked in Chromium](#local-setup) · [See supported platforms](#supported-platforms)
 
 ## Why ChatArchive
 
 - Local-first export with no backend service
+- Broader adapter coverage across 13 modern AI chat websites
 - More durable extraction through per-platform adapters and layered fallbacks
 - Multiple output formats for notes, backups, and downstream tooling
 - Built-in diagnostics that make breakages faster to understand
@@ -39,11 +40,15 @@ The project currently focuses on reliable export, readable Markdown, and maintai
 ## Highlights
 
 - Multi-platform export for major AI chat products
-- Markdown, Obsidian Markdown, plain text, and JSON output
+- Markdown, Obsidian Markdown, PDF, HTML, plain text, JSON, and CSV output
 - API-first or state-first extraction when a platform exposes stable conversation data
 - DOM fallback with confidence scoring when more stable data is unavailable
+- More robust conversation title extraction across DOM and state-backed pages
 - Popup diagnostics showing platform, extraction source, strategy, confidence, and message count
 - `Stop & Save` support for long-running DOM exports
+- Custom filename templates with tokens: `{platform}`, `{title}`, `{date}`, `{time}`, `{source}`, `{strategy}`, `{count}`
+- Message limit option for partial or specific-length exports
+- Persistent settings for format, metadata, templates, and limits
 - Debug-report copy and prefilled broken-export issue reporting
 - Fixture-based regression tests plus scheduled live smoke checks
 
@@ -57,6 +62,13 @@ The project currently focuses on reliable export, readable Markdown, and maintai
 | DeepSeek | Supported | `api`, fallback `dom` |
 | Perplexity | Supported | `page` or `dom` |
 | Grok | Supported | `dom` |
+| Mistral | Supported | `dom` |
+| HuggingChat | Supported | `dom` |
+| Meta AI | Supported | `dom` |
+| Poe | Supported | `dom` |
+| Copilot | Supported | `page` (shadow DOM) |
+| Phind | Supported | `dom` |
+| You.com | Supported | `dom` |
 
 Platforms with API or state-backed extraction are generally more stable than DOM-only platforms.
 
@@ -64,8 +76,11 @@ Platforms with API or state-backed extraction are generally more stable than DOM
 
 - Markdown
 - Obsidian Markdown
+- PDF
+- HTML
 - Plain text
 - JSON
+- CSV
 
 ## Why this repo exists
 
@@ -83,9 +98,14 @@ That structure does not prevent website breakage, but it makes breakage faster t
 
 - Full-history export with platform-aware auto-scroll
 - Structured text cleanup for headings, links, blockquotes, ordered lists, unordered lists, and code blocks
+- Print-ready PDF export with a polished local rendering path
 - Partial export support for long conversations
+- Custom filename templates for organized chat archives
+- Message limit configuration for quick or specific-length exports
+- Persistent popup settings across browser sessions
 - Global stop shortcut: `Ctrl+Shift+S` on Windows/Linux, `Command+Shift+S` on macOS
 - Metadata-rich exports including platform, extraction source, strategy, timestamp, and partial-export status
+- More robust title extraction from platform-specific headers and page state where available
 
 ## Long conversations
 
@@ -117,7 +137,7 @@ That structure does not prevent website breakage, but it makes breakage faster t
 
 - `npm run package:extension`
   Creates `dist/chatarchive-<version>.zip`.
-- Pushing a tag like `v1.12.0` triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which tests the repo, builds the extension zip, and publishes a GitHub release.
+- Pushing a tag like `v1.13.0` triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which tests the repo, builds the extension zip, and publishes a GitHub release.
 
 ### Test strategy
 

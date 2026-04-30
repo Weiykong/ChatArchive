@@ -20,10 +20,45 @@
     });
   }
 
+  function queryAllDeep(root, selectors, nodes = []) {
+    const walker = (node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if (matchesAnySelector(node, selectors)) {
+          nodes.push(node);
+        }
+        if (node.shadowRoot) {
+          Array.from(node.shadowRoot.childNodes).forEach(walker);
+        }
+      }
+      Array.from(node.childNodes).forEach(walker);
+    };
+    walker(root);
+    return nodes;
+  }
+
   function firstMatch(root, selectors) {
     return toArray(selectors)
       .map((selector) => root.querySelector(selector))
       .find(Boolean) || null;
+  }
+
+  function firstMatchDeep(root, selectors) {
+    let match = null;
+    const walker = (node) => {
+      if (match) return;
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if (matchesAnySelector(node, selectors)) {
+          match = node;
+          return;
+        }
+        if (node.shadowRoot) {
+          Array.from(node.shadowRoot.childNodes).forEach(walker);
+        }
+      }
+      Array.from(node.childNodes).forEach(walker);
+    };
+    walker(root);
+    return match;
   }
 
   function matchesAnySelector(element, selectors) {
@@ -414,6 +449,7 @@
     dedupeMessages,
     flattenStateText,
     firstMatch,
+    firstMatchDeep,
     getCleanText,
     getBestScroller,
     inferAlternatingAuthor,
@@ -422,6 +458,7 @@
     normalizeMarkdownText,
     normalizeWhitespace,
     queryAll,
+    queryAllDeep,
     parseJsonSafely,
     slugifyTitle,
     stableMessageKey,

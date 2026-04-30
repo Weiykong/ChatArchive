@@ -197,6 +197,90 @@
       animation: loading 4s infinite ease-in-out;
     }
 
+    .settings-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--secondary-text);
+      user-select: none;
+      transition: background 0.15s;
+    }
+
+    .settings-toggle:hover {
+      background: rgba(26, 115, 232, 0.06);
+    }
+
+    .settings-toggle .arrow {
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+
+    .settings-toggle.open .arrow {
+      transform: rotate(180deg);
+    }
+
+    .settings-panel {
+      display: none;
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      margin-bottom: 12px;
+      background: rgba(26, 115, 232, 0.03);
+    }
+
+    .settings-panel.open {
+      display: block;
+    }
+
+    .settings-panel .field {
+      margin-bottom: 12px;
+    }
+
+    .settings-panel .field:last-child {
+      margin-bottom: 0;
+    }
+
+    .token-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 12px;
+    }
+
+    .token-grid .checkbox-row {
+      font-size: 12px;
+    }
+
+    .token-grid .checkbox-row code {
+      font-size: 11px;
+      background: rgba(26, 115, 232, 0.08);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    .template-preview {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--secondary-text);
+      word-break: break-all;
+      line-height: 1.4;
+      padding: 6px 8px;
+      background: rgba(0, 0, 0, 0.04);
+      border-radius: 6px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .template-preview {
+        background: rgba(255, 255, 255, 0.04);
+      }
+    }
+
     .diagnostics {
       margin-top: 14px;
       padding: 12px;
@@ -239,35 +323,94 @@
     Supported today: ChatGPT, Gemini, DeepSeek, Grok, Perplexity, Claude
   </div>
   
-  <div class="field">
-    <label for="formatSelect">Export Format</label>
-    <select id="formatSelect">
-      <option value="md">Markdown (.md)</option>
-      <option value="obsidian">Obsidian Markdown (.md)</option>
-      <option value="txt">Plain Text (.txt)</option>
-      <option value="json">JSON (.json)</option>
-    </select>
+  <div class="settings-toggle" id="settingsToggle">
+    <span>Settings</span>
+    <span class="arrow">&#9660;</span>
   </div>
 
-  <div class="field">
-    <label>Options</label>
-    <div class="checkbox-row">
-      <input type="checkbox" id="includeMetadata" checked>
-      <span>Include metadata header</span>
+  <div class="settings-panel" id="settingsPanel">
+    <div class="field">
+      <label for="formatSelect">Export Format</label>
+      <select id="formatSelect">
+        <option value="md">Markdown (.md)</option>
+        <option value="obsidian">Obsidian Markdown (.md)</option>
+        <option value="pdf">PDF (.pdf)</option>
+        <option value="html">HTML (.html)</option>
+        <option value="txt">Plain Text (.txt)</option>
+        <option value="json">JSON (.json)</option>
+        <option value="csv">CSV (.csv)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Filename Template</label>
+      <div class="token-grid">
+        <div class="checkbox-row">
+          <input type="checkbox" id="tplPlatform" checked>
+          <span><code>{platform}</code></span>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="tplTitle" checked>
+          <span><code>{title}</code></span>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="tplDate" checked>
+          <span><code>{date}</code></span>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="tplTime">
+          <span><code>{time}</code></span>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="tplSource">
+          <span><code>{source}</code></span>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="tplStrategy">
+          <span><code>{strategy}</code></span>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="tplCount">
+          <span><code>{count}</code></span>
+        </div>
+      </div>
+      <div class="template-preview" id="templatePreview">[{platform}] {title} - {date}</div>
+      <input type="hidden" id="filenameTemplate" value="[{platform}] {title} - {date}">
+    </div>
+
+    <div class="field">
+      <label for="messageLimit">Max Messages (0 for all)</label>
+      <input type="number" id="messageLimit" value="0" min="0" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--bg-color); color: var(--text-color); font-size: 13px;">
+    </div>
+
+    <div class="field">
+      <label for="scrollSpeed">Scroll Delay (ms)</label>
+      <input type="number" id="scrollSpeed" value="200" min="50" step="50" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--bg-color); color: var(--text-color); font-size: 13px;">
+      <div class="hint" style="margin-top: 4px;">Lower = faster, higher = safer. Default 200.</div>
+    </div>
+
+    <div class="field">
+      <label>Options</label>
+      <div class="checkbox-row">
+        <input type="checkbox" id="includeMetadata" checked>
+        <span>Include metadata header</span>
+      </div>
     </div>
   </div>
 
   <button id="exportBtn">Export Chat</button>
 
   <div class="button-row">
+    <button id="copyBtn" class="secondary-button" type="button">Copy to Clipboard</button>
     <button id="stopBtn" class="secondary-button" type="button" disabled>Stop & Save</button>
-    <button id="copyReportBtn" class="secondary-button" type="button" disabled>Copy Debug</button>
   </div>
 
   <div class="button-row">
+    <button id="copyReportBtn" class="secondary-button" type="button" disabled>Copy Debug</button>
     <button id="reportIssueBtn" class="secondary-button" type="button" disabled>Report Issue</button>
-    <button id="refreshStatusBtn" class="secondary-button" type="button">Refresh Status</button>
   </div>
+
+  <button id="refreshStatusBtn" class="secondary-button" style="margin-top: 10px;">Refresh Status</button>
 
   <div class="hint" id="runtimeHint">
     DOM scrolling can slow down or pause in a background tab. Use Stop & Save or <code>Ctrl/Command+Shift+S</code> to keep partial progress.

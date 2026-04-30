@@ -1,6 +1,6 @@
 {
   "name": "chatarchive",
-  "version": "1.11.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Browser extension for exporting AI conversations with adapter-based extraction.",
   "scripts": {

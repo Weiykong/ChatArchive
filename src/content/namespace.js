@@ -1,9 +1,7 @@
 (function initializeExporterNamespace(globalScope) {
-  if (globalScope.ChatArchive) {
-    return;
-  }
-
+  const existing = globalScope.ChatArchive || {};
   globalScope.ChatArchive = {
-    version: "1.11.0"
+    ...existing,
+    version: "1.13.0"
   };
 })(window);

@@ -12,6 +12,112 @@
     "[aria-hidden='true']"
   ];
 
+  function collectAttributeHints(node) {
+    const hints = [];
+    let current = node;
+    let depth = 0;
+
+    while (current && depth < 4) {
+      if (current.nodeType === Node.ELEMENT_NODE) {
+        hints.push(
+          current.getAttribute("data-testid") || "",
+          current.getAttribute("aria-label") || "",
+          typeof current.className === "string" ? current.className : ""
+        );
+      }
+      current = current.parentElement;
+      depth += 1;
+    }
+
+    return hints.join(" ").toLowerCase();
+  }
+
+  function inferCopilotFallbackAuthor(node, textContent, index) {
+    const hints = collectAttributeHints(node);
+    if (/(^|[\s_-])(user|human|prompt|query)([\s_-]|$)/.test(hints)) {
+      return "You";
+    }
+    if (/(^|[\s_-])(assistant|bot|copilot|response|answer)([\s_-]|$)/.test(hints)) {
+      return "Copilot";
+    }
+
+    if (/^you[\s:,-]/i.test(textContent)) {
+      return "You";
+    }
+    if (/^copilot[\s:,-]/i.test(textContent)) {
+      return "Copilot";
+    }
+
+    return index % 2 === 0 ? "You" : "Copilot";
+  }
+
+  function isLikelyCopilotMessageText(textContent) {
+    if (!textContent || textContent.length < 3) {
+      return false;
+    }
+
+    const normalized = textContent.trim();
+    const lower = normalized.toLowerCase();
+    const blockedExact = new Set([
+      "said",
+      "message copilot",
+      "open sidebar",
+      "new chat",
+      "discover",
+      "search",
+      "labs",
+      "imagine",
+      "library"
+    ]);
+
+    if (blockedExact.has(lower)) {
+      return false;
+    }
+
+    if (
+      /^attach files, connect apps, or make something with copilot\.?$/i.test(normalized)
+      || /^message exceeds \d+ characters\.?$/i.test(normalized)
+      || /^go to copilot home page$/i.test(normalized)
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function collapseAdjacentCopilotFallbackMirrors(messages, adapter) {
+    const normalize = app.utils.normalizeWhitespace;
+    const collapsed = [];
+
+    messages.forEach((message) => {
+      const normalizedContent = normalize(message?.content || "");
+      if (!normalizedContent) {
+        return;
+      }
+
+      const previous = collapsed[collapsed.length - 1];
+      if (!previous) {
+        collapsed.push(message);
+        return;
+      }
+
+      const previousContent = normalize(previous.content || "");
+      if (previousContent !== normalizedContent) {
+        collapsed.push(message);
+        return;
+      }
+
+      const previousIsAssistant = previous.author === adapter.assistantLabel;
+      const currentIsAssistant = message.author === adapter.assistantLabel;
+
+      if (!previousIsAssistant && currentIsAssistant) {
+        collapsed[collapsed.length - 1] = message;
+      }
+    });
+
+    return collapsed;
+  }
+
   const adapters = [
     {
       id: "chatgpt",
@@ -22,6 +128,12 @@
       preferStateExtraction: true,
       removableSelectors: COMMON_REMOVALS,
       headerCleanupPatterns: [/^(ChatGPT|You)\s*/i],
+      titleSelectors: [
+        "title",
+        "[data-testid='chat-title']",
+        "nav [class*='active']",
+        "h1"
+      ],
       preferredScrollSelectors: [
         "main",
         "[role='main']",
@@ -53,10 +165,11 @@
         }
       ],
       async extractFromState(globalObject) {
-        const messages = extractChatGptStateMessages(globalObject);
+        const { messages, title } = extractChatGptStateMessages(globalObject);
         return {
           strategyId: "chatgpt-state",
           messages,
+          title,
           score: messages.length * 18
         };
       },
@@ -94,6 +207,16 @@
       preferStateExtraction: true,
       removableSelectors: COMMON_REMOVALS,
       headerCleanupPatterns: [/^(You said|Gemini said|Google Gemini|Draft \d+|View other drafts)\s*/gi],
+      titleSelectors: [
+        "h1",
+        "main h1",
+        "[role='main'] h1",
+        "main [data-test-id='conversation-title']",
+        "main .conversation-title",
+        "[data-test-id='conversation-title']",
+        ".conversation-title",
+        "title"
+      ],
       preferredScrollSelectors: ["main", "[role='main']", ".conversation-container"],
       excludedScrollSelectors: ["nav", "aside", "[class*='sidebar']"],
       strategies: [
@@ -114,10 +237,11 @@
         }
       ],
       async extractFromState(globalObject) {
-        const messages = extractGeminiStateMessages(globalObject);
+        const { messages, title } = extractGeminiStateMessages(globalObject);
         return {
           strategyId: "gemini-state",
           messages,
+          title,
           score: messages.length * 18
         };
       },
@@ -318,6 +442,12 @@
       preferPageExtraction: true,
       removableSelectors: COMMON_REMOVALS,
       headerCleanupPatterns: [/^(Perplexity|You)\s*/i],
+      titleSelectors: [
+        "h1",
+        "main h1",
+        "[data-testid='thread-title']",
+        "title"
+      ],
       preferredScrollSelectors: ["main", "[role='main']", "[class*='thread']", "[class*='message']"],
       excludedScrollSelectors: ["nav", "aside", "[class*='sidebar']"],
       strategies: [
@@ -388,6 +518,11 @@
       preferApiExtraction: true,
       removableSelectors: COMMON_REMOVALS,
       headerCleanupPatterns: [/^(Claude|You)\s*/i],
+      titleSelectors: [
+        "[data-testid='chat-title-button']",
+        "header h1",
+        "title"
+      ],
       preferredScrollSelectors: ["main", "[role='main']", "[data-testid='chat-message']"],
       excludedScrollSelectors: ["nav", "aside", "[class*='sidebar']"],
       strategies: [
@@ -507,6 +642,340 @@
           return "Claude";
         }
 
+        return authorElement?.textContent?.trim() || null;
+      }
+    },
+    {
+      id: "mistral",
+      hostPatterns: ["chat.mistral.ai"],
+      displayName: "Mistral",
+      userLabel: "You",
+      assistantLabel: "Mistral",
+      removableSelectors: COMMON_REMOVALS,
+      headerCleanupPatterns: [/^(Mistral|You)\s*/i],
+      preferredScrollSelectors: ["main", "[role='main']", "div.flex.flex-col.gap-2"],
+      excludedScrollSelectors: ["nav", "aside", "[class*='sidebar']"],
+      strategies: [
+        {
+          id: "prose-bubbles",
+          messageSelectors: ["div.flex.flex-col.gap-2", "div.prose", "div.bg-subtle"],
+          contentSelectors: [".prose", "div.bg-subtle"]
+        }
+      ],
+      inferAuthor(messageNode, authorElement, textContent) {
+        if (messageNode.classList.contains("prose") || messageNode.querySelector(".prose")) {
+          return "Mistral";
+        }
+        if (messageNode.classList.contains("bg-subtle")) {
+          return "You";
+        }
+        if (/^you\b/i.test(textContent)) {
+          return "You";
+        }
+        if (/mistral/i.test(textContent)) {
+          return "Mistral";
+        }
+        return authorElement?.textContent?.trim() || null;
+      }
+    },
+    {
+      id: "huggingchat",
+      hostPatterns: ["huggingface.co/chat"],
+      displayName: "HuggingChat",
+      userLabel: "You",
+      assistantLabel: "HuggingChat",
+      removableSelectors: COMMON_REMOVALS,
+      headerCleanupPatterns: [/^(HuggingChat|You)\s*/i],
+      preferredScrollSelectors: ["main", "[role='main']", "div.group.relative.flex"],
+      excludedScrollSelectors: ["nav", "aside", "[class*='sidebar']"],
+      strategies: [
+        {
+          id: "data-message-role",
+          messageSelectors: ["div[data-message-role]"],
+          contentSelectors: [".prose", ".markdown-body", ".whitespace-break-spaces"]
+        }
+      ],
+      inferAuthor(messageNode, authorElement, textContent) {
+        const role = messageNode.getAttribute("data-message-role");
+        if (role === "user") return "You";
+        if (role === "assistant") return "HuggingChat";
+        if (/^you\b/i.test(textContent)) return "You";
+        return authorElement?.textContent?.trim() || null;
+      }
+    },
+    {
+      id: "meta-ai",
+      hostPatterns: ["meta.ai"],
+      displayName: "Meta AI",
+      userLabel: "You",
+      assistantLabel: "Meta AI",
+      removableSelectors: COMMON_REMOVALS,
+      headerCleanupPatterns: [/^(Meta AI|You)\s*/i],
+      preferredScrollSelectors: ["main", "[role='main']", "article[data-testid^='conversation-turn-']"],
+      excludedScrollSelectors: ["nav", "aside", "[class*='sidebar']"],
+      strategies: [
+        {
+          id: "data-turn",
+          messageSelectors: ["article[data-testid^='conversation-turn-']", "[data-turn]"],
+          contentSelectors: ["div[dir='auto']", ".markdown", ".prose"]
+        }
+      ],
+      inferAuthor(messageNode, authorElement, textContent) {
+        const turn = messageNode.getAttribute("data-turn") || messageNode.querySelector("[data-turn]")?.getAttribute("data-turn");
+        if (turn === "user") return "You";
+        if (turn === "assistant") return "Meta AI";
+        if (/^you\b/i.test(textContent)) return "You";
+        if (/meta ai/i.test(textContent)) return "Meta AI";
+        return authorElement?.textContent?.trim() || null;
+      }
+    },
+    {
+      id: "poe",
+      hostPatterns: ["poe.com"],
+      displayName: "Poe",
+      userLabel: "You",
+      assistantLabel: "Poe",
+      removableSelectors: COMMON_REMOVALS,
+      headerCleanupPatterns: [/^(Poe|You)\s*/i],
+      preferredScrollSelectors: ["main", "[role='main']", "[class^='ChatMessagesView_messageTuple']"],
+      excludedScrollSelectors: ["nav", "aside", "[class*='sidebar']"],
+      strategies: [
+        {
+          id: "class-prefix",
+          messageSelectors: ["[class^='ChatMessage_chatMessage']", "[class^='Message_botMessageBubble']", "[class^='Message_humanMessageBubble']"],
+          contentSelectors: ["[class^='Message_selectableText']", ".prose", ".markdown"]
+        }
+      ],
+      inferAuthor(messageNode, authorElement, textContent) {
+        if (messageNode.querySelector("[class^='Message_botMessageBubble']") || messageNode.matches("[class^='Message_botMessageBubble']")) {
+          return "Poe";
+        }
+        if (messageNode.querySelector("[class^='Message_humanMessageBubble']") || messageNode.matches("[class^='Message_humanMessageBubble']")) {
+          return "You";
+        }
+        if (/^you\b/i.test(textContent)) return "You";
+        return authorElement?.textContent?.trim() || null;
+      }
+    },
+    {
+      id: "copilot",
+      hostPatterns: ["copilot.microsoft.com", "bing.com/chat"],
+      displayName: "Copilot",
+      userLabel: "You",
+      assistantLabel: "Copilot",
+      preferPageExtraction: true,
+      removableSelectors: COMMON_REMOVALS,
+      headerCleanupPatterns: [/^(Copilot|You)\s+said[\s:,-]*/i, /^(Copilot|You)\s*/i],
+      titleSelectors: [
+        "[data-testid='conversation-title']",
+        "[data-testid='chat-title']",
+        "[data-testid='thread-title']",
+        "[data-testid*='conversation-title']",
+        "[data-testid*='chat-title']",
+        "[data-testid*='thread-title']",
+        "[href*='/chats/'][aria-current='page'] span",
+        "[href*='/chats/'][aria-current='page']",
+        "[href*='/chats/'][aria-selected='true'] span",
+        "[href*='/chats/'][aria-selected='true']",
+        "[data-testid*='history'] [aria-current='page'] span",
+        "[data-testid*='history'] [aria-current='page']",
+        "[data-testid*='history'] [aria-selected='true'] span",
+        "[data-testid*='history'] [aria-selected='true']",
+        "button[aria-current='page'] span",
+        "button[aria-current='page']",
+        "button[aria-selected='true'] span",
+        "button[aria-selected='true']",
+        "nav [aria-current='page'] span",
+        "nav [aria-current='page']",
+        "main h1",
+        "title"
+      ],
+      titleIgnorePatterns: [
+        /^copilot$/i,
+        /^new chat$/i,
+        /^microsoft copilot: your ai companion$/i,
+        /^copilot: your ai companion$/i
+      ],
+      preferredScrollSelectors: ["main", "[role='main']", "cib-serp", "cib-conversation"],
+      excludedScrollSelectors: ["nav", "aside", "[class*='sidebar']"],
+      strategies: [
+        {
+          id: "shadow-dom",
+          messageSelectors: ["cib-message"],
+          contentSelectors: ["cib-shared", ".prose", ".markdown", "div", "p"]
+        }
+      ],
+      async extractFromPage(globalObject) {
+        const { queryAllDeep, firstMatchDeep, getCleanText, normalizeWhitespace, stableMessageKey } = app.utils;
+        const messages = [];
+        const seen = new Set();
+        const mainRoot = globalObject.document.querySelector("main") || globalObject.document.body;
+        const fallbackSelectors = [
+          "[data-testid*='message']",
+          "[data-testid*='Message']",
+          "[data-testid*='turn']",
+          "article",
+          "[role='article']"
+        ];
+        const selectorGroups = {
+          cibMessage: ["cib-message"],
+          sharedContent: ["cib-shared"],
+          articleLike: ["article", "[role='article']"],
+          testIdMessage: ["[data-testid*='message']", "[data-testid*='Message']", "[data-testid*='turn']"],
+          promptLike: ["textarea[data-testid='composer-input']", "#userInput", "[placeholder*='Message Copilot']"]
+        };
+        const candidateCounts = Object.fromEntries(
+          Object.entries(selectorGroups).map(([key, selectors]) => [key, queryAllDeep(globalObject.document, selectors).length])
+        );
+        const titleCandidates = (this.titleSelectors || []).map((selector) => {
+          const node = globalObject.document.querySelector(selector) || firstMatchDeep(globalObject.document, [selector]);
+          const text = normalizeWhitespace(node?.textContent || node?.innerText || "");
+          return {
+            selector,
+            text: text.slice(0, 160)
+          };
+        }).filter((entry) => entry.text);
+        
+        const messageNodes = queryAllDeep(mainRoot, ["cib-message"]);
+        
+        messageNodes.forEach((node, index) => {
+          const type = node.getAttribute("type");
+          const author = type === "bot" ? "Copilot" : type === "user" ? "You" : "Copilot";
+          
+          const contentNode = firstMatchDeep(node, ["cib-shared", "div", "p"]) || node;
+          const content = getCleanText(contentNode, this);
+          
+          if (content && content.length > 2) {
+            const message = {
+              author,
+              content,
+              strategy: "copilot-shadow"
+            };
+            const key = stableMessageKey(message);
+            if (!seen.has(key)) {
+              seen.add(key);
+              messages.push(message);
+            }
+          }
+        });
+
+        const fallbackSampleTexts = [];
+        if (messages.length === 0) {
+          const fallbackNodes = queryAllDeep(mainRoot, fallbackSelectors).filter((node) => {
+            if (!node.closest("main")) {
+              return false;
+            }
+            if (node.closest("nav, aside, [role='navigation'], [data-testid='composer']")) {
+              return false;
+            }
+            if (node.parentElement?.closest(fallbackSelectors.join(", "))) {
+              return false;
+            }
+            return true;
+          });
+
+          fallbackNodes.forEach((node, index) => {
+            const content = getCleanText(node, this);
+
+            if (fallbackSampleTexts.length < 8) {
+              fallbackSampleTexts.push({
+                testId: node.getAttribute("data-testid") || "",
+                text: content.slice(0, 160)
+              });
+            }
+
+            if (!isLikelyCopilotMessageText(content)) {
+              return;
+            }
+
+            const message = {
+              author: inferCopilotFallbackAuthor(node, content, index),
+              content,
+              strategy: "copilot-fallback"
+            };
+            const key = stableMessageKey(message);
+            if (!seen.has(key)) {
+              seen.add(key);
+              messages.push(message);
+            }
+          });
+        }
+        
+        const normalizedMessages = messages.some((message) => message.strategy === "copilot-fallback")
+          ? collapseAdjacentCopilotFallbackMirrors(messages, this)
+          : messages;
+
+        return {
+          strategyId: normalizedMessages.some((message) => message.strategy === "copilot-fallback")
+            ? "copilot-fallback"
+            : "copilot-shadow",
+          messages: normalizedMessages,
+          score: normalizedMessages.length * 15,
+          diagnostics: {
+            candidateCounts,
+            titleCandidates,
+            fallbackSampleTexts
+          }
+        };
+      },
+      inferAuthor(messageNode, authorElement, textContent) {
+        const type = messageNode.getAttribute("type");
+        if (type === "bot") return "Copilot";
+        if (type === "user") return "You";
+        if (/^you\b/i.test(textContent)) return "You";
+        if (/copilot/i.test(textContent)) return "Copilot";
+        return authorElement?.textContent?.trim() || null;
+      }
+    },
+    {
+      id: "phind",
+      hostPatterns: ["phind.com"],
+      displayName: "Phind",
+      userLabel: "You",
+      assistantLabel: "Phind",
+      removableSelectors: COMMON_REMOVALS,
+      headerCleanupPatterns: [/^(Phind|You)\s*/i],
+      preferredScrollSelectors: ["main", "[role='main']", "[data-testid='home-container']"],
+      excludedScrollSelectors: ["nav", "aside", "[class*='sidebar']"],
+      strategies: [
+        {
+          id: "aria-labels",
+          messageSelectors: ["div[aria-label='User Message']", "div[aria-label='Phind Response']", "div.user-message-container", "div.phind-response-container"],
+          contentSelectors: [".prose", ".markdown", "div.message-text"]
+        }
+      ],
+      inferAuthor(messageNode, authorElement, textContent) {
+        const label = messageNode.getAttribute("aria-label") || "";
+        if (label.includes("User")) return "You";
+        if (label.includes("Phind")) return "Phind";
+        if (messageNode.classList.contains("user-message-container")) return "You";
+        if (messageNode.classList.contains("phind-response-container")) return "Phind";
+        if (/^you\b/i.test(textContent)) return "You";
+        return authorElement?.textContent?.trim() || null;
+      }
+    },
+    {
+      id: "you",
+      hostPatterns: ["you.com"],
+      displayName: "You.com",
+      userLabel: "You",
+      assistantLabel: "You.com",
+      removableSelectors: COMMON_REMOVALS,
+      headerCleanupPatterns: [/^(You\.com|You)\s*/i],
+      preferredScrollSelectors: ["main", "[role='main']", "#chatHistory", "[data-testid='chat-history-list']"],
+      excludedScrollSelectors: ["nav", "aside", "[class*='sidebar']"],
+      strategies: [
+        {
+          id: "data-testids",
+          messageSelectors: ["[data-testid='youchat-answer']", "[data-testid='youchat-user-query']"],
+          contentSelectors: [".markdown-body", ".prose", "p", "div"]
+        }
+      ],
+      inferAuthor(messageNode, authorElement, textContent) {
+        const testid = messageNode.getAttribute("data-testid") || "";
+        if (testid.includes("user-query")) return "You";
+        if (testid.includes("answer")) return "You.com";
+        if (/^you\b/i.test(textContent)) return "You";
         return authorElement?.textContent?.trim() || null;
       }
     }
@@ -668,9 +1137,22 @@
     const { collectStatePayloads, flattenStateText, normalizeWhitespace, walkStateObjects } = app.utils;
     const messages = [];
     const seen = new Set();
+    let title = "";
 
     collectStatePayloads(globalObject).forEach(({ value }) => {
+      // Direct path for shared conversations or SEO titles in __NEXT_DATA__
+      const possibleTitle = value?.props?.pageProps?.serverResponse?.data?.title ||
+                            value?.props?.pageProps?.gizmo?.gizmo?.display_name;
+      if (possibleTitle && !title) {
+        title = normalizeWhitespace(possibleTitle);
+      }
+
       walkStateObjects(value, (node) => {
+        // Look for title property in state objects that look like conversation metadata
+        if (!title && typeof node?.title === "string" && node.title.length > 2 && node.id && node.create_time) {
+          title = normalizeWhitespace(node.title);
+        }
+
         const message = node?.message && typeof node.message === "object" ? node.message : node;
         const role = message?.author?.role || message?.role || "";
         if (!["user", "assistant"].includes(role)) {
@@ -701,18 +1183,32 @@
       });
     });
 
-    return messages;
+    return { messages, title };
   }
 
   function extractGeminiStateMessages(globalObject) {
     const { collectStatePayloads, flattenStateText, normalizeWhitespace, walkStateObjects } = app.utils;
     const messages = [];
     const seen = new Set();
+    let title = "";
+
+    const pathSegments = globalObject.location.pathname.split("/").filter(Boolean);
+    const chatId = pathSegments.includes("c") ? pathSegments[pathSegments.indexOf("c") + 1] : null;
 
     collectStatePayloads(globalObject).forEach(({ value }) => {
       walkStateObjects(value, (node) => {
         if (!node || typeof node !== "object") {
           return;
+        }
+
+        // Look for conversation title in state
+        if (typeof node.title === "string" && node.title.length > 3 && (node.conversationId || node.serverTimestamp)) {
+          const isTargetChat = chatId && node.conversationId === chatId;
+          if (isTargetChat) {
+            title = normalizeWhitespace(node.title);
+          } else if (!title && !chatId) {
+            title = normalizeWhitespace(node.title);
+          }
         }
 
         if (typeof node.query === "string" || typeof node.response === "string") {
@@ -744,7 +1240,7 @@
       });
     });
 
-    return messages;
+    return { messages, title };
   }
 
   function addGeminiMessage(messages, seen, author, content) {
